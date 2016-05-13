@@ -30,6 +30,7 @@ from nova import manager
 from nova import objects
 from nova.openstack.common import periodic_task
 from nova import quota
+import migration_manager
 
 
 LOG = logging.getLogger(__name__)
@@ -64,6 +65,12 @@ class SchedulerManager(manager.Manager):
         super(SchedulerManager, self).__init__(service_name='scheduler',
                                                *args, **kwargs)
         self.additional_endpoints.append(_SchedulerManagerV3Proxy(self))
+
+    # auto migration period task
+    @periodic_task.periodic_task(spacing=60)
+    def _auto_migration(self, context):
+        migrater = migration_manager.MigrationManager()
+        migrater.auth_migration_check()
 
     @periodic_task.periodic_task
     def _expire_reservations(self, context):
