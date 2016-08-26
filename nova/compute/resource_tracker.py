@@ -43,6 +43,7 @@ from nova import rpc
 from nova.scheduler import client as scheduler_client
 from nova import utils
 from nova.virt import hardware
+import json
 
 resource_tracker_opts = [
     cfg.IntOpt('reserved_host_disk_mb', default=0,
@@ -64,6 +65,10 @@ LOG = logging.getLogger(__name__)
 COMPUTE_RESOURCE_SEMAPHORE = "compute_resources"
 
 CONF.import_opt('my_ip', 'nova.netconf')
+CONF.import_opt('my_bmc_ip', 'nova.netconf')
+CONF.import_opt('my_bmc_username', 'nova.netconf')
+CONF.import_opt('my_bmc_password', 'nova.netconf')
+CONF.import_opt('failover_enabled', 'nova.netconf')
 
 
 class ResourceTracker(object):
@@ -383,6 +388,12 @@ class ResourceTracker(object):
             self.compute_node = None
             return
         resources['host_ip'] = CONF.my_ip
+        bmc_info = {}
+        bmc_info['bmc_username'] = CONF.my_bmc_username
+        bmc_info['bmc_password'] = CONF.my_bmc_password
+        bmc_info['bmc_ip'] = CONF.my_bmc_ip
+        bmc_info['failover_enabled'] = CONF.failover_enabled
+        resources['extra_resources'] = json.dumps(bmc_info)
 
         # We want the 'cpu_info' to be None from the POV of the
         # virt driver, but the DB requires it to be non-null so
