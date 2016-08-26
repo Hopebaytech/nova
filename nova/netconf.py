@@ -40,6 +40,15 @@ netconf_opts = [
     cfg.BoolOpt('use_ipv6',
                 default=False,
                 help='Use IPv6'),
+    cfg.StrOpt('my_bmc_ip',
+               help='BMC IP address of this host'),
+    cfg.StrOpt('my_bmc_username',
+               help='BMC username of this host'),
+    cfg.StrOpt('my_bmc_password',
+               help='BMC password address of this host'),
+    cfg.BoolOpt('failover_enabled',
+                default=False,
+                help='failover instances when this host down'),
 ]
 
 CONF.register_opts(netconf_opts)
