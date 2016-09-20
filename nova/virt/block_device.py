@@ -194,7 +194,7 @@ class DriverVolumeBlockDevice(DriverBlockDevice):
     _valid_source = 'volume'
     _valid_destination = 'volume'
 
-    _proxy_as_attr = set(['volume_size', 'volume_id'])
+    _proxy_as_attr = set(['volume_size', 'volume_id', 'volume_type'])
     _update_on_save = {'disk_bus': None,
                        'device_name': 'mount_device',
                        'device_type': None}
@@ -346,7 +346,8 @@ class DriverSnapshotBlockDevice(DriverVolumeBlockDevice):
 class DriverImageBlockDevice(DriverVolumeBlockDevice):
 
     _valid_source = 'image'
-    _proxy_as_attr = set(['volume_size', 'volume_id', 'image_id'])
+    _proxy_as_attr = set(['volume_size', 'volume_id', 'image_id',
+                          'volume_type'])
 
     def attach(self, context, instance, volume_api,
                virt_driver, wait_func=None, do_check_attach=True):
@@ -354,7 +355,8 @@ class DriverImageBlockDevice(DriverVolumeBlockDevice):
             av_zone = instance.availability_zone
             vol = volume_api.create(context, self.volume_size,
                                     '', '', image_id=self.image_id,
-                                    availability_zone=av_zone)
+                                    availability_zone=av_zone,
+                                    volume_type=self.volume_type)
             if wait_func:
                 self._call_wait_func(context, wait_func, volume_api, vol['id'])
 
