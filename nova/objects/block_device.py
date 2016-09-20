@@ -69,6 +69,7 @@ class BlockDeviceMapping(base.NovaPersistentObject, base.NovaObject,
         'image_id': fields.StringField(nullable=True),
         'no_device': fields.BooleanField(default=False),
         'connection_info': fields.StringField(nullable=True),
+        'volume_type': fields.StringField(nullable=True),
     }
 
     obj_relationships = {

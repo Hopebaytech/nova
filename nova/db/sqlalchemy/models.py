@@ -637,6 +637,7 @@ class BlockDeviceMapping(BASE, NovaBase):
     no_device = Column(Boolean)
 
     connection_info = Column(MediumText())
+    volume_type = Column(String(36))
 
 
 class IscsiTarget(BASE, NovaBase):
