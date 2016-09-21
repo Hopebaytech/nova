@@ -105,6 +105,7 @@ from nova.virt import netutils
 from nova.virt import watchdog_actions
 from nova import volume
 from nova.volume import encryptors
+from nova.virt.libvirt import remotefs
 
 libvirt = None
 
@@ -468,6 +469,7 @@ class LibvirtDriver(driver.ComputeDriver):
                                        sysinfo_serial_funcs.keys())})
 
         self.job_tracker = instancejobtracker.InstanceJobTracker()
+        self._remotefs = remotefs.RemoteFilesystem()
 
     def _get_volume_drivers(self):
         return libvirt_volume_drivers
@@ -2633,6 +2635,13 @@ class LibvirtDriver(driver.ComputeDriver):
         return os.path.join(libvirt_utils.get_instance_path(instance),
                             'disk.config' + suffix)
 
+    @staticmethod
+    def _get_disk_config_image_type():
+        # TODO(mikal): there is a bug here if images_type has
+        # changed since creation of the instance, but I am pretty
+        # sure that this bug already exists.
+        return 'rbd' if CONF.libvirt.images_type == 'rbd' else 'raw'
+
     def _chown_console_log_for_instance(self, instance):
         console_log = self._get_console_log_path(instance)
         if os.path.exists(console_log):
@@ -2882,6 +2891,19 @@ class LibvirtDriver(driver.ComputeDriver):
                         LOG.error(_LE('Creating config drive failed '
                                       'with error: %s'),
                                   e, instance=instance)
+            try:
+                # Tell the storage backend about the config drive
+                config_drive_image = self.image_backend.image(
+                    instance, 'disk.config' + suffix,
+                    self._get_disk_config_image_type())
+
+               # config_drive_image.import_file(
+               #     instance, configdrive_path, 'disk.config' + suffix)
+            finally:
+                # NOTE(mikal): if the config drive was imported into RBD, then
+                # we no longer need the local copy
+                if CONF.libvirt.images_type == 'rbd':
+                    os.unlink(configdrive_path)
 
         # File injection only if needed
         elif inject_files and CONF.libvirt.inject_partition != -2:
@@ -3239,11 +3261,14 @@ class LibvirtDriver(driver.ComputeDriver):
                         block_device.prepend_dev(diskswap.target_dev))
 
             if 'disk.config' in disk_mapping:
-                diskconfig = self._get_guest_disk_config(instance,
-                                                         'disk.config',
-                                                         disk_mapping,
-                                                         inst_type,
-                                                         'raw')
+                diskconfig = self._get_guest_disk_config(
+                    instance, 'disk.config', disk_mapping, inst_type,
+                    self._get_disk_config_image_type())
+               # diskconfig = self._get_guest_disk_config(instance,
+               #                                          'disk.config',
+               #                                          disk_mapping,
+               #                                          inst_type,
+               #                                          'raw')
                 devices.append(diskconfig)
 
         for vol in block_device.get_bdms_to_connect(block_device_mapping,
@@ -5065,6 +5090,10 @@ class LibvirtDriver(driver.ComputeDriver):
         dest_check_data.update({'is_shared_block_storage':
                 self._is_shared_block_storage(instance, dest_check_data,
                                               block_device_info)})
+        disk_info_text = self.get_instance_disk_info(
+            instance, block_device_info=block_device_info)
+        booted_from_volume = self._is_booted_from_volume(instance,
+                                                         disk_info_text)
 
         if dest_check_data['block_migration']:
             if (dest_check_data['is_shared_block_storage'] or
@@ -5078,7 +5107,8 @@ class LibvirtDriver(driver.ComputeDriver):
                                     block_device_info)
 
         elif not (dest_check_data['is_shared_block_storage'] or
-                  dest_check_data['is_shared_instance_path']):
+                 dest_check_data['is_shared_instance_path'] or
+                 booted_from_volume):
             reason = _("Live migration can not be used "
                        "without shared storage.")
             raise exception.InvalidSharedStorage(reason=reason, path=source)
@@ -5808,14 +5838,24 @@ class LibvirtDriver(driver.ComputeDriver):
         image_meta = utils.get_image_from_system_metadata(
             instance.system_metadata)
 
-        if not (is_shared_instance_path and is_shared_block_storage):
+      #  if not (is_shared_instance_path and is_shared_block_storage):
             # NOTE(dims): Using config drive with iso format does not work
             # because of a bug in libvirt with read only devices. However
             # one can use vfat as config_drive_format which works fine.
             # Please see bug/1246201 for details on the libvirt bug.
-            if CONF.config_drive_format != 'vfat':
-                if configdrive.required_by(instance):
-                    raise exception.NoLiveMigrationForConfigDriveInLibVirt()
+      #      if CONF.config_drive_format != 'vfat':
+      #          if configdrive.required_by(instance):
+      #              raise exception.NoLiveMigrationForConfigDriveInLibVirt()
+
+        if configdrive.required_by(instance):
+            if (is_shared_block_storage or
+                is_shared_instance_path or
+                CONF.config_drive_format in ('vfat', 'iso9660')):
+                pass
+            else:
+                raise exception.NoLiveMigrationForConfigDriveInLibVirt()
+
+
 
         if not is_shared_instance_path:
             instance_dir = libvirt_utils.get_instance_path_at_destination(
@@ -5830,6 +5870,9 @@ class LibvirtDriver(driver.ComputeDriver):
                 self._create_images_and_backing(
                     context, instance, instance_dir, disk_info,
                     fallback_from_host=instance.host)
+                if (configdrive.required_by(instance)):
+                    src = "%s:%s/disk.config" % (instance.host, instance_dir)
+                    self._remotefs.copy_file(src, instance_dir)
 
         if not (is_block_migration or is_shared_instance_path):
             # NOTE(angdraug): when block storage is shared between source and

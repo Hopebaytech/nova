@@ -375,6 +375,9 @@ class Image(object):
         """Get an image's name of a base file."""
         return os.path.split(base)[-1]
 
+    def import_file(self, instance, local_file, remote_name):
+        pass
+
 
 class Raw(Image):
     def __init__(self, instance=None, disk_name=None, path=None):
@@ -775,6 +778,12 @@ class Rbd(Image):
         reason = _('No image locations are accessible')
         raise exception.ImageUnacceptable(image_id=image_id_or_uri,
                                           reason=reason)
+
+    def import_file(self, instance, local_file, remote_name):
+        name = '%s_%s' % (instance.uuid, remote_name)
+        if self.check_image_exists():
+            self.driver.remove_image(name)
+        self.driver.import_image(local_file, name)
 
 
 class Ploop(Image):
