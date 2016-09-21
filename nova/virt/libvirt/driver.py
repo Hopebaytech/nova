@@ -2880,9 +2880,6 @@ class LibvirtDriver(driver.ComputeDriver):
                 config_drive_image = self.image_backend.image(
                     instance, 'disk.config' + suffix,
                     self._get_disk_config_image_type())
-
-               # config_drive_image.import_file(
-               #     instance, configdrive_path, 'disk.config' + suffix)
             finally:
                 # NOTE(mikal): if the config drive was imported into RBD, then
                 # we no longer need the local copy
@@ -3248,11 +3245,6 @@ class LibvirtDriver(driver.ComputeDriver):
                 diskconfig = self._get_guest_disk_config(
                     instance, 'disk.config', disk_mapping, inst_type,
                     self._get_disk_config_image_type())
-               # diskconfig = self._get_guest_disk_config(instance,
-               #                                          'disk.config',
-               #                                          disk_mapping,
-               #                                          inst_type,
-               #                                          'raw')
                 devices.append(diskconfig)
 
         for vol in block_device.get_bdms_to_connect(block_device_mapping,
@@ -5821,15 +5813,6 @@ class LibvirtDriver(driver.ComputeDriver):
 
         image_meta = utils.get_image_from_system_metadata(
             instance.system_metadata)
-
-      #  if not (is_shared_instance_path and is_shared_block_storage):
-            # NOTE(dims): Using config drive with iso format does not work
-            # because of a bug in libvirt with read only devices. However
-            # one can use vfat as config_drive_format which works fine.
-            # Please see bug/1246201 for details on the libvirt bug.
-      #      if CONF.config_drive_format != 'vfat':
-      #          if configdrive.required_by(instance):
-      #              raise exception.NoLiveMigrationForConfigDriveInLibVirt()
 
         if configdrive.required_by(instance):
             if (is_shared_block_storage or
