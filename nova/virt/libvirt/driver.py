@@ -5067,7 +5067,7 @@ class LibvirtDriver(driver.ComputeDriver):
                 self._is_shared_block_storage(instance, dest_check_data,
                                               block_device_info)})
         disk_info_text = self.get_instance_disk_info(
-            instance, block_device_info=block_device_info)
+            instance, block_device_info=block_device_info, skip_config_drive=True)
         booted_from_volume = self._is_booted_from_volume(instance,
                                                          disk_info_text)
 
@@ -6071,7 +6071,7 @@ class LibvirtDriver(driver.ComputeDriver):
             self._conn.defineXML(xml)
 
     def _get_instance_disk_info(self, instance_name, xml,
-                                block_device_info=None):
+                                block_device_info=None, skip_config_drive=False):
         block_device_mapping = driver.block_device_info_get_mapping(
             block_device_info)
 
@@ -6106,6 +6106,11 @@ class LibvirtDriver(driver.ComputeDriver):
                           'volume', {'path': path, 'target': target})
                 continue
 
+            if skip_config_drive and 'disk.config' in path:
+                LOG.debug('skipping config drive (disk.config) for %s',
+                          instance_name)
+                continue
+
             # get the real disk size or
             # raise a localized error if image is unavailable
             if disk_type == 'file':
@@ -6132,7 +6137,7 @@ class LibvirtDriver(driver.ComputeDriver):
         return jsonutils.dumps(disk_info)
 
     def get_instance_disk_info(self, instance,
-                               block_device_info=None):
+                               block_device_info=None, skip_config_drive=False):
         try:
             dom = self._host.get_domain(instance)
             xml = dom.XMLDesc(0)
@@ -6148,7 +6153,7 @@ class LibvirtDriver(driver.ComputeDriver):
             raise exception.InstanceNotFound(instance_id=instance.name)
 
         return self._get_instance_disk_info(instance.name, xml,
-                                            block_device_info)
+                                            block_device_info, skip_config_drive)
 
     def _get_disk_over_committed_size_total(self):
         """Return total over committed disk size for all instances."""
